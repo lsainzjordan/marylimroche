@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Espaguetización interactivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; 
+            color: #f8fafc;
+            overscroll-behavior: none; /* Previene scroll al arrastrar en móvil */
+        }
+        
+        .visualization-container {
+            background-image: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+            position: relative;
+            overflow: hidden;
+            touch-action: none; /* Crítico para usar pointer events sin hacer scroll */
+        }
+
+        /* Black hole rendering con las rayitas rojas */
+        .black-hole {
+            background-color: black;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px dashed #ef4444; /* Rayitas rojas en el exterior mantenidas */
+            box-shadow: 0 0 40px 10px rgba(234, 179, 8, 0.4), 
+                        inset 0 0 20px 5px rgba(0,0,0,1);
+            z-index: 10;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Rings for Schwarzschild and Roche limits */
+        .ring {
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-style: dashed;
+            z-index: 15; /* Subimos el z-index para que se vea POR ENCIMA del interior negro */
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .rs-ring {
+            border-width: 2px;
+            border-color: #ef4444; 
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+
+        .roche-ring {
+            border-width: 2px;
+            border-color: #3b82f6; 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+
+        input[type=range] {
+            accent-color: #8b5cf6;
+        }
+
+        /* Estilos del Stickman */
+        #stickman-group {
+            cursor: grab;
+            transition: filter 0.2s;
+        }
+        #stickman-group:active {
+            cursor: grabbing;
+        }
+        .espaguetizado {
+            filter: drop-shadow(0 0 10px red);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <main class="w-full max-w-6xl bg-slate-800 rounded-2xl shadow-2xl overflow-hidden border border-slate-700 flex flex-col md:flex-row">
+        
+        <!-- Controls Section -->
+        <section class="w-full md:w-1/3 p-6 bg-slate-800 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-slate-700 h-full">
+            <div>
+                <h1 class="text-2xl font-bold text-violet-400 mb-2">Simulador Interactivo</h1>
+                <p class="text-xs text-slate-400 mb-2">Arrastra al astronauta para ver cómo aumentan las fuerzas de marea.</p>
+                <p class="text-[10px] text-slate-500">Sujeto: 65 kg, 1.70 m | F. Ruptura: 4000 N</p>
+            </div>
+
+            <!-- Slider Control -->
+            <div class="flex flex-col gap-2">
+                <label for="massSlider" class="text-sm font-medium text-slate-300">
+                    Masa del Agujero Negro (Masas Solares)
+                </label>
+                <input type="range" id="massSlider" min="1" max="7" step="0.1" value="1" class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-xs text-slate-500 font-mono mt-1">
+                    <span>10 M☉</span>
+                    <span>10⁷ M☉</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-900 rounded-lg p-3 text-center border border-slate-700 col-span-2">
+                    <span class="text-xs text-slate-400 block mb-1">Masa del Agujero Negro</span>
+                    <span id="massValue" class="text-xl font-bold text-yellow-400 font-mono">10</span>
+                    <span class="text-sm text-yellow-400"> M☉</span>
+                </div>
+                
+                <div class="bg-slate-900 rounded-lg p-2 border border-red-900/50 text-center">
+                    <span class="text-[10px] font-semibold text-red-400 uppercase tracking-wider block">Horizonte (Rs)</span>
+                    <span id="rsValue" class="text-sm font-mono text-slate-200">0 km</span>
+                </div>
+
+                <div class="bg-slate-900 rounded-lg p-2 border border-blue-900/50 text-center">
+                    <span class="text-[10px] font-semibold text-blue-400 uppercase tracking-wider block">Ruptura (d)</span>
+                    <span id="rocheValue" class="text-sm font-mono text-slate-200">0 km</span>
+                </div>
+            </div>
+
+            <!-- Live Telemetry Section (New) -->
+            <div class="mt-auto pt-4 border-t border-slate-700">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    Telemetría del Sujeto
+                </h3>
+                
+                <div class="bg-slate-950 rounded-lg p-4 relative overflow-hidden">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-sm text-slate-300">Fuerza de Marea:</span>
+                        <span id="liveForce" class="text-2xl font-mono font-bold text-white">0 N</span>
+                    </div>
+                    
+                    <!-- Progress bar for force -->
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 mb-3">
+                        <div id="forceBar" class="bg-gradient-to-r from-green-400 via-yellow-500 to-red-500 h-1.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+                    </div>
+
+                    <div id="liveStatus" class="text-sm font-medium text-center p-2 rounded transition-colors duration-300 bg-slate-800 text-slate-300 border border-slate-700">
+                        Acerca el sujeto al agujero negro
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visualization Section -->
+        <section class="w-full md:w-2/3 h-[500px] md:h-auto visualization-container flex items-center justify-center relative" id="visContainer">
+            
+            <!-- Div Rings and BH (Visual only) -->
+            <div id="visualRsRing" class="ring rs-ring"></div>
+            <div id="visualRocheRing" class="ring roche-ring"></div>
+            <div id="visualBlackHole" class="black-hole"></div>
+            
+            <!-- SVG Overlay for Interaction and Vectors -->
+            <svg id="interactiveCanvas" class="absolute inset-0 w-full h-full z-20" style="pointer-events: none;">
+                <defs>
+                    <!-- Marker for the vector arrows -->
+                    <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                        <polygon points="0 0, 6 2, 0 4" fill="#f97316" /> <!-- Orange 500 -->
+                    </marker>
+                    <marker id="arrowhead-danger" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                        <polygon points="0 0, 6 2, 0 4" fill="#ef4444" /> <!-- Red 500 -->
+                    </marker>
+                </defs>
+
+                <!-- Line indicating distance to center -->
+                <line id="distanceLine" x1="0" y1="0" x2="0" y2="0" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="4" />
+
+                <!-- The Stickman (pointer-events: auto allows interacting only with this element) -->
+                <g id="stickman-group" transform="translate(100, 100)" style="pointer-events: auto;">
+                    <!-- Hitbox invisble para hacer más facil agarrarlo -->
+                    <circle cx="0" cy="0" r="30" fill="transparent"/>
+                    
+                    <!-- Vector Flechas (Marea) -->
+                    <line id="vecHead" x1="0" y1="-20" x2="0" y2="-20" stroke="#f97316" stroke-width="2" marker-end="url(#arrowhead)" class="transition-colors duration-200" />
+                    <line id="vecFeet" x1="0" y1="20" x2="0" y2="20" stroke="#f97316" stroke-width="2" marker-end="url(#arrowhead)" class="transition-colors duration-200" />
+
+                    <!-- Cuerpo Stickman -->
+                    <g id="stickman-body" stroke="white" stroke-width="2" stroke-linecap="round">
+                        <circle cx="0" cy="-12" r="5" fill="none" /> <!-- Cabeza -->
+                        <line x1="0" y1="-7" x2="0" y2="10" /> <!-- Tronco -->
+                        <line x1="0" y1="-2" x2="-8" y2="5" /> <!-- Brazo Izq -->
+                        <line x1="0" y1="-2" x2="8" y2="5" /> <!-- Brazo Der -->
+                        <line x1="0" y1="10" x2="-6" y2="20" /> <!-- Pierna Izq -->
+                        <line x1="0" y1="10" x2="6" y2="20" /> <!-- Pierna Der -->
+                    </g>
+                </g>
+            </svg>
+
+            <!-- Legend -->
+            <div class="absolute bottom-4 left-4 flex flex-col gap-2 z-30 bg-black/40 p-2 rounded backdrop-blur-sm border border-slate-700/50">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 border-t-2 border-dashed border-red-500"></div>
+                    <span class="text-[10px] text-slate-300">Horizonte Eventos</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 border-t-2 border-dashed border-blue-500"></div>
+                    <span class="text-[10px] text-slate-300">Límite Ruptura (Roche)</span>
+                </div>
+            </div>
+            
+        </section>
+    </main>
+
+    <script>
+        // Constants
+        const G = 6.67430e-11; // m^3 / (kg * s^2)
+        const c = 299792458; // m/s
+        const M_sun = 1.989e30; // kg
+        
+        // Subject parameters
+        const m_subject = 65; // kg
+        const h_subject = 1.70; // m
+        const F_rupture = 4000; // N
+
+        // DOM Elements
+        const slider = document.getElementById('massSlider');
+        const massValueDisplay = document.getElementById('massValue');
+        const rsValueDisplay = document.getElementById('rsValue');
+        const rocheValueDisplay = document.getElementById('rocheValue');
+        
+        const visualBH = document.getElementById('visualBlackHole');
+        const visualRs = document.getElementById('visualRsRing');
+        const visualRoche = document.getElementById('visualRocheRing');
+        const visContainer = document.getElementById('visContainer');
+
+        // Interactive Elements
+        const stickmanGroup = document.getElementById('stickman-group');
+        const stickmanBody = document.getElementById('stickman-body');
+        const vecHead = document.getElementById('vecHead');
+        const vecFeet = document.getElementById('vecFeet');
+        const distanceLine = document.getElementById('distanceLine');
+        const liveForceText = document.getElementById('liveForce');
+        const forceBar = document.getElementById('forceBar');
+        const liveStatus = document.getElementById('liveStatus');
+
+        const formatter = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
+
+        // State Variables
+        let currentMassKg = 0;
+        let theoretical_Rs_px = 0; 
+        let rs_m = 0;
+        let roche_m = 0;
+        
+        // Stickman position state
+        let stickmanPos = { x: 50, y: 50 }; // Pixels relative to container top-left
+        let isDragging = false;
+        let centerPos = { x: 0, y: 0 };
+
+        function calculateSchwarzschildRadius(mass_kg) {
+            return (2 * G * mass_kg) / (c * c);
+        }
+
+        function calculateCriticalDistance(mass_kg) {
+            const insideCubeRoot = (2 * G * mass_kg * m_subject * h_subject) / F_rupture;
+            return Math.pow(insideCubeRoot, 1/3);
+        }
+
+        function updateBasePhysics() {
+            const exponent = parseFloat(slider.value);
+            const massSolares = Math.pow(10, exponent);
+            currentMassKg = massSolares * M_sun;
+
+            // Formatter
+            if (exponent >= 6) {
+                massValueDisplay.innerText = (massSolares / 1e6).toFixed(1) + " Millones";
+            } else if (exponent >= 3) {
+                massValueDisplay.innerText = formatter.format(massSolares);
+            } else {
+                massValueDisplay.innerText = formatter.format(massSolares);
+            }
+
+            rs_m = calculateSchwarzschildRadius(currentMassKg);
+            roche_m = calculateCriticalDistance(currentMassKg);
+            
+            rsValueDisplay.innerText = formatter.format(rs_m / 1000) + " km";
+            rocheValueDisplay.innerText = formatter.format(roche_m / 1000) + " km";
+
+            // Visual scaling update
+            const maxDisplaySize = Math.min(visContainer.clientWidth, visContainer.clientHeight) * 0.85;
+            const ratio = roche_m / rs_m;
+            
+            let visualRsSize, visualRocheSize;
+
+            if (ratio > 1) {
+                // Roche is bigger
+                visualRocheSize = maxDisplaySize;
+                theoretical_Rs_px = maxDisplaySize / ratio;
+                visualRsSize = Math.max(theoretical_Rs_px, 10); // Clamp visually
+            } else {
+                // Rs is bigger
+                theoretical_Rs_px = maxDisplaySize;
+                visualRsSize = theoretical_Rs_px;
+                // Nos aseguramos de que el anillo de Roche nunca desaparezca del todo visualmente (mínimo 6px)
+                visualRocheSize = Math.max(maxDisplaySize * ratio, 6); 
+            }
+
+            visualRs.style.width = `${visualRsSize}px`;
+            visualRs.style.height = `${visualRsSize}px`;
+            visualRoche.style.width = `${visualRocheSize}px`;
+            visualRoche.style.height = `${visualRocheSize}px`;
+            visualBH.style.width = `${visualRsSize}px`;
+            visualBH.style.height = `${visualRsSize}px`;
+
+            // Center tracking for stickman math
+            centerPos = {
+                x: visContainer.clientWidth / 2,
+                y: visContainer.clientHeight / 2
+            };
+
+            // Recalculate interaction physics with new mass/scale
+            updateStickmanPhysics();
+        }
+
+        function initInteraction() {
+            // Center stickman initially somewhere safe
+            setTimeout(() => {
+                centerPos = { x: visContainer.clientWidth / 2, y: visContainer.clientHeight / 2 };
+                stickmanPos = { x: 50, y: centerPos.y };
+                updateStickmanPhysics();
+            }, 100);
+
+            // Pointer events handle both mouse and touch
+            stickmanGroup.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                stickmanGroup.setPointerCapture(e.pointerId);
+            });
+
+            visContainer.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                
+                const rect = visContainer.getBoundingClientRect();
+                let x = e.clientX - rect.left;
+                let y = e.clientY - rect.top;
+
+                // Clamp to container bounds
+                x = Math.max(20, Math.min(rect.width - 20, x));
+                y = Math.max(20, Math.min(rect.height - 20, y));
+
+                stickmanPos = { x, y };
+                updateStickmanPhysics();
+            });
+
+            visContainer.addEventListener('pointerup', (e) => {
+                isDragging = false;
+            });
+            visContainer.addEventListener('pointercancel', (e) => {
+                isDragging = false;
+            });
+        }
+
+        function updateStickmanPhysics() {
+            // 1. Calculate orientation angle towards Black Hole
+            const dx = centerPos.x - stickmanPos.x;
+            const dy = centerPos.y - stickmanPos.y;
+            // Angle to point feet towards center (adds 90 deg / PI/2)
+            const angleRad = Math.atan2(dy, dx);
+            const angleDeg = angleRad * (180 / Math.PI) - 90;
+
+            // Apply translation and rotation
+            stickmanGroup.setAttribute('transform', `translate(${stickmanPos.x}, ${stickmanPos.y}) rotate(${angleDeg})`);
+
+            // 2. Draw distance line
+            distanceLine.setAttribute('x1', stickmanPos.x);
+            distanceLine.setAttribute('y1', stickmanPos.y);
+            distanceLine.setAttribute('x2', centerPos.x);
+            distanceLine.setAttribute('y2', centerPos.y);
+
+            // 3. Calculate Physical Distance (d_m)
+            // How many meters does 1 pixel represent?
+            // theoretical_Rs_px is the diameter. Radius is / 2.
+            const meters_per_pixel = rs_m / (theoretical_Rs_px / 2);
+            
+            const dist_px = Math.hypot(dx, dy);
+            const dist_m = dist_px * meters_per_pixel;
+
+            // 4. Calculate Tidal Force
+            // F = (2 * G * M * m * h) / d^3
+            // Safeguard against division by zero exacto limitando la distancia mínima a 1 metro
+            let force = 0;
+            let clamped_dist = Math.max(dist_m, 1); 
+            force = (2 * G * currentMassKg * m_subject * h_subject) / Math.pow(clamped_dist, 3);
+
+            // 5. Update UI Telemetry
+            let displayForce = force > 1000000 ? force.toExponential(2) : formatter.format(force);
+            liveForceText.innerText = displayForce + " N";
+            
+            let forcePercentage = Math.min((force / F_rupture) * 100, 100);
+            forceBar.style.width = forcePercentage + "%";
+            forceBar.className = forcePercentage > 99 
+                ? "bg-red-600 h-1.5 rounded-full transition-all duration-100" 
+                : "bg-gradient-to-r from-green-400 via-yellow-500 to-red-500 h-1.5 rounded-full transition-all duration-100";
+
+            if (force >= F_rupture) {
+                if (dist_m <= rs_m) {
+                    liveStatus.innerText = "ESPAGUETIZADO DENTRO DEL HORIZONTE";
+                } else {
+                    liveStatus.innerText = "¡FUERZA CRÍTICA! ESPAGUETIZACIÓN INICIADA";
+                }
+                liveStatus.className = "text-sm font-bold text-center p-2 rounded bg-red-900/50 text-red-300 border border-red-800 animate-pulse";
+                stickmanGroup.classList.add('espaguetizado');
+                stickmanBody.setAttribute('stroke', '#ef4444');
+            } else {
+                if (dist_m <= rs_m) {
+                    liveStatus.innerText = "CRUZASTE EL HORIZONTE (AÚN ENTERO)";
+                    liveStatus.className = "text-sm font-bold text-center p-2 rounded bg-purple-900/50 text-purple-300 border border-purple-800 animate-pulse";
+                } else {
+                    liveStatus.innerText = "Integridad estructural estable";
+                    liveStatus.className = "text-sm font-medium text-center p-2 rounded bg-green-900/30 text-green-400 border border-green-800/50";
+                }
+                stickmanGroup.classList.remove('espaguetizado');
+                stickmanBody.setAttribute('stroke', 'white');
+            }
+
+            // 6. Update Vector Arrows Visuals
+            // Cap the visual length of arrows so they don't cover the screen
+            let arrowVisualLength = Math.min(100, (force / F_rupture) * 40);
+            
+            // Only show arrows if there is noticeable force (Ahora también se ven dentro del horizonte)
+            if (force > 50) {
+                vecHead.style.display = 'block';
+                vecFeet.style.display = 'block';
+                
+                vecHead.setAttribute('y2', -20 - arrowVisualLength);
+                vecFeet.setAttribute('y2', 20 + arrowVisualLength);
+
+                // Change color if breaking
+                let color = force >= F_rupture ? "#ef4444" : "#f97316";
+                let marker = force >= F_rupture ? "url(#arrowhead-danger)" : "url(#arrowhead)";
+                
+                vecHead.setAttribute('stroke', color);
+                vecFeet.setAttribute('stroke', color);
+                vecHead.setAttribute('marker-end', marker);
+                vecFeet.setAttribute('marker-end', marker);
+            } else {
+                vecHead.style.display = 'none';
+                vecFeet.style.display = 'none';
+            }
+        }
+
+        // Event Listeners
+        slider.addEventListener('input', updateBasePhysics);
+        window.addEventListener('resize', () => {
+            updateBasePhysics();
+        });
+        
+        // Init
+        updateBasePhysics();
+        initInteraction();
+
+    </script>
+</body>
+</html>

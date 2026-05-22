@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Laboratorio de Gravitación 3D Pro</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020205; font-family: 'Segoe UI', sans-serif; }
+        #controles {
+            position: absolute; top: 20px; right: 20px; color: white;
+            background: rgba(10, 10, 25, 0.9); padding: 20px; border-radius: 12px;
+            border: 1px solid #4dc3ff; z-index: 10; width: 280px;
+        }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .btn {
+            flex: 1; padding: 10px; border: none; border-radius: 6px;
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 11px;
+            background-color: #333; color: #888;
+        }
+        .btn.active-planeta { background-color: #deff9a; color: #000; }
+        .btn.active-prueba { background-color: #4dc3ff; color: #000; }
+        .btn-clear { width: 100%; background-color: #ff4444; color: #fff; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        label { display: block; font-size: 12px; color: #ccc; margin-bottom: 5px; }
+        input[type=range] { width: 100%; accent-color: #4dc3ff; }
+        
+        #leyenda {
+            position: absolute; bottom: 20px; left: 20px; color: white;
+            background: rgba(10, 10, 25, 0.9); padding: 15px; border-radius: 8px; font-size: 12px;
+            border: 1px solid #4dc3ff; z-index: 10;
+        }
+        .barra-colores {
+            height: 10px; width: 220px;
+            background: linear-gradient(to right, #7700ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+            margin-top: 8px; margin-bottom: 5px; border: 1px solid #fff;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="controles">
+        <h3 style="margin:0 0 15px 0; color:#4dc3ff">SIMULADOR FÍSICO</h3>
+        
+        <div class="btn-group">
+            <button id="btnPlaneta" class="btn active-planeta" onclick="setModo('PLANETA')">AÑADIR MASA</button>
+            <button id="btnPrueba" class="btn" onclick="setModo('PRUEBA')">SOLTAR CANICA</button>
+        </div>
+
+        <div style="margin-bottom:15px">
+            <label>Masa del cuerpo: <span id="valSize">150</span></label>
+            <input type="range" id="sizeInput" min="20" max="500" value="150">
+        </div>
+
+        <button onclick="limpiarTodo()" class="btn-clear">BORRAR ESPACIO</button>
+    </div>
+
+    <div id="leyenda">
+        <strong>|Potencial Gravitatorio|</strong>
+        <div class="barra-colores"></div>
+        <div style="display: flex; justify-content: space-between; color: #ccc;">
+            <span>Alto (Centro)</span>
+            <span>Bajo (Lejos)</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
+        <div style="color: #ff2222;"><strong>&rarr; Campo Vectorial (Fuerza Neta)</strong></div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, malla, grupoMasas, grupoFlechas;
+        let masas = [], particulas = [], rastros = [];
+        let modoActual = 'PLANETA';
+
+        window.onload = function() {
+            init();
+            animar();
+        };
+
+        function setModo(m) {
+            modoActual = m;
+            document.getElementById('btnPlaneta').className = m === 'PLANETA' ? 'btn active-planeta' : 'btn';
+            document.getElementById('btnPrueba').className = m === 'PRUEBA' ? 'btn active-prueba' : 'btn';
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 80, 130);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            let sun = new THREE.DirectionalLight(0xffffff, 1);
+            sun.position.set(10, 100, 10);
+            scene.add(sun);
+
+            grupoMasas = new THREE.Group();
+            scene.add(grupoMasas);
+            grupoFlechas = new THREE.Group();
+            scene.add(grupoFlechas);
+
+            const geo = new THREE.PlaneGeometry(200, 200, 100, 100);
+            geo.rotateX(-Math.PI / 2);
+            
+            // Superficie coloreada original
+            malla = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.8 }));
+            scene.add(malla);
+
+            // --- NUEVO: Malla de rejilla superpuesta ---
+            const materialMalla = new THREE.MeshBasicMaterial({
+                color: 0xffffff, // Color de las líneas
+                wireframe: true, // Modo rejilla
+                transparent: true, // Permitir transparencia
+                opacity: 0.15 // Opacidad baja para que sea sutil
+            });
+            const meshMalla = new THREE.Mesh(geo, materialMalla);
+            scene.add(meshMalla);
+            // ------------------------------------------
+
+            window.addEventListener('mousedown', onclick);
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            document.getElementById('sizeInput').oninput = (e) => document.getElementById('valSize').innerText = e.target.value;
+            
+            actualizarEscena();
+        }
+
+        function getPotencial(x, z) {
+            let y = 0;
+            masas.forEach(m => {
+                let dx = x - m.x, dz = z - m.z;
+                let dist = Math.sqrt(dx*dx + dz*dz);
+                let suavizado = m.radio * 1.5;
+                y -= (m.masa * 1.8) / Math.sqrt(dist*dist + suavizado*suavizado);
+            });
+            return y;
+        }
+
+        function actualizarEscena() {
+            // 1. Malla y Colores
+            const pos = malla.geometry.attributes.position.array;
+            const cols = [];
+            const color = new THREE.Color();
+            
+            let minY = 0;
+            for(let i=1; i<pos.length; i+=3) {
+                let y = getPotencial(pos[i-1], pos[i+1]);
+                pos[i] = y;
+                if(y < minY) minY = y;
+            }
+
+            for(let i=1; i<pos.length; i+=3) {
+                let y = pos[i];
+                let norm = minY < -0.1 ? Math.max(0, Math.min(1, y / minY)) : 0;
+                
+                let hue = 0.75 * norm;
+                
+                color.setHSL(hue, 0.85, 0.45);
+                cols.push(color.r, color.g, color.b);
+            }
+            malla.geometry.attributes.position.needsUpdate = true;
+            malla.geometry.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+
+            // 2. Planetas
+            masas.forEach(m => {
+                m.mesh.position.y = getPotencial(m.x, m.z) + (m.radio * 0.4);
+            });
+
+            // 3. Campo Vectorial Estricto
+            while(grupoFlechas.children.length > 0) grupoFlechas.remove(grupoFlechas.children[0]);
+            
+            if(masas.length > 0) {
+                const espaciado = 12;
+                for(let x = -90; x <= 90; x += espaciado) {
+                    for(let z = -90; z <= 90; z += espaciado) {
+                        let y = getPotencial(x, z);
+                        let fx = 0, fy = 0, fz = 0;
+                        let dentroPlaneta = false;
+
+                        masas.forEach(m => {
+                            let centroY = m.mesh.position.y;
+                            let dx = m.x - x;
+                            let dy = centroY - y;
+                            let dz = m.z - z;
+                            
+                            let distSq = dx*dx + dy*dy + dz*dz;
+                            let dist = Math.sqrt(distSq);
+
+                            if (dist < m.radio + 1.5) {
+                                dentroPlaneta = true;
+                            }
+
+                            let fuerzaMagnitud = (m.masa * 2.5) / distSq;
+                            fx += (dx / dist) * fuerzaMagnitud;
+                            fy += (dy / dist) * fuerzaMagnitud;
+                            fz += (dz / dist) * fuerzaMagnitud;
+                        });
+
+                        if (!dentroPlaneta) {
+                            let mag = Math.sqrt(fx*fx + fy*fy + fz*fz);
+                            
+                            if (mag > 0.1) {
+                                let dir = new THREE.Vector3(fx, fy, fz).normalize();
+                                let longitud = Math.min(espaciado * 1.5, mag * 3);
+                                
+                                if(longitud > 1) {
+                                    let punta = Math.min(longitud * 0.3, 2);
+                                    let arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(x, y + 0.5, z), longitud, 0xff2222, punta, punta * 0.5);
+                                    grupoFlechas.add(arrow);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function onclick(e) {
+            if(e.target.tagName !== 'CANVAS') return;
+            let mouse = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+            let ray = new THREE.Raycaster();
+            ray.setFromCamera(mouse, camera);
+            let inter = ray.intersectObject(malla);
+
+            if(inter.length > 0) {
+                let p = inter[0].point;
+                if(modoActual === 'PLANETA') {
+                    let mVal = parseFloat(document.getElementById('sizeInput').value);
+                    let rad = 3 + (mVal/40);
+                    let mesh = new THREE.Mesh(new THREE.SphereGeometry(rad, 24, 24), new THREE.MeshStandardMaterial({color: 0x5588ff}));
+                    grupoMasas.add(mesh);
+                    mesh.position.set(p.x, 0, p.z);
+                    masas.push({x: p.x, z: p.z, masa: mVal, radio: rad, mesh: mesh});
+                    actualizarEscena();
+                } else {
+                    let ball = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 12), new THREE.MeshStandardMaterial({color: 0xffffff}));
+                    scene.add(ball);
+                    particulas.push({mesh: ball, x: p.x, z: p.z, vx: 0, vz: 0});
+                }
+            }
+        }
+
+        function limpiarTodo() {
+            masas = []; particulas.forEach(p=>scene.remove(p.mesh)); particulas = [];
+            rastros.forEach(r=>scene.remove(r)); rastros = [];
+            while(grupoMasas.children.length > 0) grupoMasas.remove(grupoMasas.children[0]);
+            actualizarEscena();
+        }
+
+        function animar() {
+            requestAnimationFrame(animar);
+            particulas.forEach((p, i) => {
+                let ax=0, az=0;
+                masas.forEach(m => {
+                    let dx = m.x - p.x, dz = m.z - p.z;
+                    let dist = Math.sqrt(dx*dx + dz*dz);
+                    if(dist < m.radio) { p.vx=0; p.vz=0; }
+                    else {
+                        let f = (m.masa * 0.05) / (dist*dist + 1);
+                        ax += (dx/dist) * f; az += (dz/dist) * f;
+                    }
+                });
+                p.vx = (p.vx + ax) * 0.98; p.vz = (p.vz + az) * 0.98;
+                p.x += p.vx; p.z += p.vz;
+                let y = getPotencial(p.x, p.z);
+                p.mesh.position.set(p.x, y + 1, p.z);
+                if(Math.random() > 0.7) {
+                    let dot = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.4}));
+                    dot.position.set(p.x, y+0.2, p.z);
+                    scene.add(dot); rastros.push(dot);
+                    if(rastros.length > 300) scene.remove(rastros.shift());
+                }
+            });
+            camera.lookAt(0, -10, 0);
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

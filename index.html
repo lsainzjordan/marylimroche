@@ -2,17 +2,126 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Menú de Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Comando Espacial</title>
+    <style>
+        /* Fondo del espacio profundo */
+        body {
+            background-color: #050510;
+            background-image: 
+                radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+                radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+                radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px);
+            background-size: 550px 550px, 350px 350px, 250px 250px;
+            background-position: 0 0, 40px 60px, 130px 270px;
+            color: #e0e0ff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Contenedor principal estilo terminal futurista */
+        .console-container {
+            background: rgba(10, 10, 25, 0.75);
+            border: 1px solid #3b4252;
+            border-radius: 12px;
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.15), inset 0 0 15px rgba(0, 229, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        /* Título con efecto de brillo misterioso */
+        h1 {
+            font-size: 1.8rem;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            color: #00e5ff;
+            text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #8892b0;
+            margin-bottom: 35px;
+            letter-spacing: 1px;
+        }
+
+        /* Lista de botones */
+        .program-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .program-item {
+            margin-bottom: 18px;
+        }
+
+        /* Botones interactivos espaciales */
+        .program-link {
+            display: block;
+            text-decoration: none;
+            color: #00e5ff;
+            background: rgba(0, 229, 255, 0.03);
+            padding: 15px 20px;
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        /* Animación al pasar el ratón (Hover) */
+        .program-link:hover {
+            color: #fff;
+            background: rgba(0, 229, 255, 0.2);
+            border-color: #00e5ff;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* Variante especial misteriosa para el Agujero Negro */
+        .link-void {
+            color: #bd93f9;
+            border-color: rgba(189, 147, 249, 0.3);
+            background: rgba(189, 147, 249, 0.03);
+        }
+
+        .link-void:hover {
+            color: #fff;
+            background: rgba(189, 147, 249, 0.2);
+            border-color: #bd93f9;
+            box-shadow: 0 0 15px rgba(189, 147, 249, 0.4);
+        }
+    </style>
 </head>
 <body>
-    <h1>Mis Programas de la Presentación</h1>
-    <p>Haz clic en el archivo que quieras ejecutar:</p>
-    
-    <!-- Cambia lo que está entre comillas por el nombre exacto de tus archivos -->
-    <ul>
-        <li><a href="sim3dconvariablesrafa.html">Abrir Simulador 3D de Gravedad</a></li>
-        <li><a href="Programa_Quique.html">Abrir Simulador de Límite de Roche</a></li>
-        <li><a href="agujeronegro.html">Abrir Simulador de Agujeros Negros</a></li>
-    </ul>
+
+    <div class="console-container">
+        <h1>Misión Espacial</h1>
+        <div class="subtitle">SELECCIONE MÓDULO DE EJECUCIÓN</div>
+        
+        <ul class="program-list">
+            <li class="program-item">
+                <a class="program-link" href="sim3dconvariablesrafa.html">Simulación de la gravedad</a>
+            </li>
+            <li class="program-item">
+                <a class="program-link" href="Programa_Quique.html">Simulación de Límite de Roche</a>
+            </li>
+            <li class="program-item">
+                <a class="program-link link-void" href="agujeronegro.html">Simulación de Agujeros Negros</a>
+            </li>
+        </ul>
+    </div>
+
 </body>
 </html>

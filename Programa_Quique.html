@@ -3,218 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora Interactiva del Límite de Roche</title>
+    <title>Simulador: Límite de Roche - Órbita Real</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #1e1e1e;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-        .container {
-            background-color: #2d2d2d;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-            max-width: 600px;
-            width: 100%;
-        }
-        .control-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-        .input-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        input[type=range] {
-            flex-grow: 1;
-            cursor: pointer;
-        }
-        input[type=number] {
-            width: 90px;
-            padding: 5px;
-            font-size: 1em;
-            background-color: #444;
-            color: #4CAF50;
-            border: 1px solid #666;
-            border-radius: 4px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .result-box {
-            background-color: #111;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-            margin-top: 20px;
-            font-size: 1.2em;
-            border: 1px solid #4CAF50;
-        }
-        canvas {
-            background-color: #000;
-            border-radius: 5px;
-            margin-top: 20px;
-            width: 100%;
-            max-width: 500px;
-            height: 350px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            border: 1px solid #444;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f1015; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background-color: #1c1d24; padding: 20px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.8); max-width: 650px; width: 100%; border: 1px solid #2d2f3a; }
+        .control-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.85em; color: #a5b1c2; }
+        .input-row { display: flex; align-items: center; gap: 10px; }
+        input[type=range] { flex-grow: 1; cursor: pointer; accent-color: #4b7bec; }
+        input[type=number], select { width: 90px; padding: 5px; background-color: #2d2f3a; color: #4bcffa; border: 1px solid #4b7bec; border-radius: 5px; text-align: center; font-weight: bold; }
+        select { width: 100%; color: #fff; }
+        .result-box { background-color: #0f1015; padding: 12px; border-radius: 8px; text-align: center; margin-top: 15px; border-left: 5px solid #4b7bec; min-height: 50px;}
+        .safe { border-left-color: #0be881; }
+        .warning { border-left-color: #ffd32a; background-color: #2c270b; }
+        .danger { border-left-color: #ff3f34; background-color: #240c0c; }
+        .ring { border-left-color: #a29bfe; background-color: #1a1924; }
+        
+        .play-btn { width: 100%; padding: 12px; margin-top: 15px; background-color: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background-color 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .play-btn:hover { background-color: #45a049; }
+        .play-btn.stop-mode { background-color: #e74c3c; }
+        .play-btn.stop-mode:hover { background-color: #c0392b; }
+
+        canvas { background-image: radial-gradient(circle at center, #1e272e 0%, #000000 100%); border-radius: 8px; margin-top: 15px; width: 100%; height: 350px; border: 1px solid #2d2f3a; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>Límite de Roche (Satélite Fluido)</h2>
-        <p>Observa cómo los colores cambian según el material (Gas, Hielo, Roca, Metal).</p>
+        <h2 style="margin-top: 0; color: #d2dae2;">Órbita y Límite de Roche</h2>
+        
+        <div class="control-group">
+            <label>Estado del Satélite (Efecto Rotación):</label>
+            <select id="tipo_cuerpo">
+                <option value="1.26">Sólido Rígido (Límite 1.26 - Muy resistente)</option>
+                <option value="2.44" selected>Fluido Síncrono (Límite 2.44 - Estándar)</option>
+                <option value="2.70">Alta Rotación (Límite 2.70 - Vulnerable)</option>
+            </select>
+        </div>
 
         <div class="control-group">
-            <label>Radio del Planeta (km):</label>
+            <label>Radio de la Tierra (km):</label>
             <div class="input-row">
-                <input type="range" id="radio_planeta_slider" min="1000" max="150000" value="6371" step="1">
-                <input type="number" id="radio_planeta_num" min="1000" max="150000" value="6371" step="1">
+                <input type="range" id="radio_planeta_slider" min="3000" max="20000" value="6371">
+                <input type="number" id="radio_planeta_num" value="6371">
             </div>
         </div>
 
         <div class="control-group">
-            <label>Densidad del Planeta (g/cm³):</label>
+            <label style="color: #ffd32a;">Distancia de la Luna (km):</label>
             <div class="input-row">
-                <input type="range" id="densidad_planeta_slider" min="0.1" max="10" value="5.51" step="0.01">
-                <input type="number" id="densidad_planeta_num" min="0.1" max="10" value="5.51" step="0.01">
+                <input type="range" id="distancia_slider" min="5000" max="150000" value="50000">
+                <input type="number" id="distancia_num" value="50000" style="color: #ffd32a;">
             </div>
         </div>
 
         <div class="control-group">
-            <label>Densidad del Satélite (g/cm³):</label>
+            <label style="color: #0be881;">Velocidad Orbital Constante (km/s):</label>
             <div class="input-row">
-                <input type="range" id="densidad_satelite_slider" min="0.1" max="10" value="3.34" step="0.01">
-                <input type="number" id="densidad_satelite_num" min="0.1" max="10" value="3.34" step="0.01">
+                <input type="range" id="vel_slider" min="0.1" max="25" step="0.1" value="4.0">
+                <input type="number" id="vel_num" value="4.0" step="0.1" style="color: #0be881;">
             </div>
+            <small id="vel_ideal" style="color: #808e9b; font-size: 0.75em;"></small>
         </div>
 
-        <div class="result-box">
-            Límite de Roche: <br>
-            <span id="resultado_roche" style="font-size: 1.5em; color: #4CAF50;">Calculando...</span>
+        <button id="btnPlay" class="play-btn" onclick="toggleAnimacion()">▶ Iniciar Acercamiento Orbital</button>
+
+        <div id="caja_resultado" class="result-box safe">
+            Límite de Roche calculado: <span id="resultado_roche" style="font-weight: bold;">...</span><br>
+            <div id="estado_satelite" style="font-weight: bold; margin-top: 5px;"></div>
         </div>
 
-        <canvas id="canvasSimulador" width="500" height="350"></canvas>
+        <canvas id="canvasSimulador"></canvas>
     </div>
 
     <script>
-        const sliderRp = document.getElementById('radio_planeta_slider');
-        const numRp = document.getElementById('radio_planeta_num');
-        const sliderDp = document.getElementById('densidad_planeta_slider');
-        const numDp = document.getElementById('densidad_planeta_num');
-        const sliderDs = document.getElementById('densidad_satelite_slider');
-        const numDs = document.getElementById('densidad_satelite_num');
-        const resultadoRoche = document.getElementById('resultado_roche');
+        const G = 6.674e-11;
+        const inputs = document.querySelectorAll('input, select');
         const canvas = document.getElementById('canvasSimulador');
         const ctx = canvas.getContext('2d');
 
-        // Función para elegir color según la densidad (material)
-        function getColorMaterial(densidad) {
-            if (densidad < 1.5) return '#f3a683'; // Gas (Naranja pálido)
-            if (densidad < 3.0) return '#778beb'; // Hielo/Agua (Azul claro)
-            if (densidad < 6.0) return '#8c7ae6'; // Roca (Púrpura/Grisáceo terrestre)
-            return '#d63031';                     // Metal pesado (Rojo hierro)
-        }
+        const imgTierra = new Image();
+        imgTierra.crossOrigin = "Anonymous";
+        imgTierra.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Earth_Western_Hemisphere_transparent_background.png/320px-Earth_Western_Hemisphere_transparent_background.png';
+        
+        const imgLuna = new Image();
+        imgLuna.crossOrigin = "Anonymous";
+        imgLuna.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/320px-FullMoon2010.jpg';
 
-        function sincronizarYCalcular(event) {
-            // Sincronizar inputs
-            if (event?.target === sliderRp) numRp.value = sliderRp.value;
-            if (event?.target === numRp) sliderRp.value = numRp.value;
-            if (event?.target === sliderDp) numDp.value = sliderDp.value;
-            if (event?.target === numDp) sliderDp.value = numDp.value;
-            if (event?.target === sliderDs) numDs.value = sliderDs.value;
-            if (event?.target === numDs) sliderDs.value = numDs.value;
+        let animando = false;
+        let idAnimacion = null;
+        let anguloOrbital = 0; // NUEVA VARIABLE PARA LA ROTACIÓN
 
-            // Obtener valores
-            const Rp = parseFloat(numRp.value) || 0;
-            const Dp = parseFloat(numDp.value) || 0.1; 
-            const Ds = parseFloat(numDs.value) || 0.1;
-
-            // Fórmula: d = 2.44 * Rp * (Dp / Ds)^(1/3)
-            const d = 2.44 * Rp * Math.pow((Dp / Ds), 1/3);
+        function calcular() {
+            const Rp = parseFloat(document.getElementById('radio_planeta_num').value);
+            const dist = parseFloat(document.getElementById('distancia_num').value);
+            const vel = parseFloat(document.getElementById('vel_num').value);
+            const factor = parseFloat(document.getElementById('tipo_cuerpo').value);
             
-            resultadoRoche.textContent = d.toLocaleString(undefined, {maximumFractionDigits: 2}) + " km";
+            const Dp = 5.51; 
+            const Ds = 3.34;
 
-            dibujarSimulacion(Rp, d, Dp, Ds);
+            const dRoche = factor * Rp * Math.pow((Dp / Ds), 1/3);
+            document.getElementById('resultado_roche').textContent = Math.round(dRoche).toLocaleString() + " km";
+
+            const masaPlaneta = (4/3) * Math.PI * Math.pow(Rp * 1000, 3) * (Dp * 1000); 
+            const vIdeal = Math.sqrt((G * masaPlaneta) / (dist * 1000)) / 1000; 
+            document.getElementById('vel_ideal').textContent = `Velocidad sugerida en este punto: ${vIdeal.toFixed(2)} km/s`;
+
+            let estado = "✅ Órbita Estable y Segura";
+            let clase = "safe";
+            let tipoDestruccion = "ninguno";
+
+            if (dist <= dRoche) {
+                if (animando) toggleAnimacion();
+
+                if (vel >= vIdeal * 0.75) {
+                    estado = "🪐 ¡DESINTEGRADA! Su velocidad forma un hermoso anillo orbital.";
+                    clase = "ring";
+                    tipoDestruccion = "anillo";
+                } else {
+                    estado = "☄️ ¡DESINTEGRADA Y CAYENDO! Lluvia de meteoritos hacia la Tierra.";
+                    clase = "danger";
+                    tipoDestruccion = "caida";
+                }
+            } else if (dist <= Rp) {
+                if (animando) toggleAnimacion();
+                estado = "💥 IMPACTO DIRECTO CONTRA LA TIERRA.";
+                clase = "danger";
+                tipoDestruccion = "caida";
+            } else if (vel < vIdeal * 0.75) {
+                estado = "⚠️ PELIGRO: Va demasiado lento, perdiendo altitud.";
+                clase = "warning";
+            } else if (vel > vIdeal * 1.5) {
+                estado = "🚀 ESCAPE: Va demasiado rápido y abandonará la órbita.";
+                clase = "warning";
+            }
+
+            document.getElementById('caja_resultado').className = 'result-box ' + clase;
+            document.getElementById('estado_satelite').textContent = estado;
+
+            dibujar(Rp, dRoche, dist, tipoDestruccion, vel, vIdeal);
         }
 
-        function dibujarSimulacion(radioPlaneta, limiteRoche, densidadPlaneta, densidadSatelite) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (radioPlaneta <= 0 || limiteRoche <= 0) return;
+        function toggleAnimacion() {
+            const btn = document.getElementById('btnPlay');
+            if (animando) {
+                animando = false;
+                cancelAnimationFrame(idAnimacion);
+                btn.textContent = "▶ Iniciar Acercamiento Orbital";
+                btn.classList.remove('stop-mode');
+            } else {
+                const Rp = parseFloat(document.getElementById('radio_planeta_num').value);
+                const factor = parseFloat(document.getElementById('tipo_cuerpo').value);
+                const dRoche = factor * Rp * Math.pow((5.51 / 3.34), 1/3);
+                let distActual = parseFloat(document.getElementById('distancia_num').value);
+                
+                if (distActual <= dRoche) {
+                    document.getElementById('distancia_num').value = Math.round(dRoche * 1.8);
+                    document.getElementById('distancia_slider').value = Math.round(dRoche * 1.8);
+                }
 
-            const centerX = canvas.width / 2;
+                animando = true;
+                btn.textContent = "⏸ Detener Simulación";
+                btn.classList.add('stop-mode');
+                cicloAnimacion();
+            }
+        }
+
+        function cicloAnimacion() {
+            if (!animando) return;
+
+            let distInput = document.getElementById('distancia_num');
+            let distSlider = document.getElementById('distancia_slider');
+            let velInput = document.getElementById('vel_num');
+            
+            let distActual = parseFloat(distInput.value);
+            let velActual = parseFloat(velInput.value);
+
+            // Reducimos la distancia simulando la caída
+            let pasoDistancia = Math.max(80, distActual * 0.003);
+            distActual -= pasoDistancia;
+
+            // FÍSICA DE ROTACIÓN: ω = v / r. Incrementamos el ángulo orbital
+            let pasoAngulo = (velActual / distActual) * 120; // Multiplicador para ajuste visual
+            anguloOrbital -= pasoAngulo; // Restamos para que gire en sentido antihorario
+
+            distInput.value = distActual.toFixed(0);
+            distSlider.value = distActual.toFixed(0);
+
+            calcular();
+
+            if (animando) {
+                idAnimacion = requestAnimationFrame(cicloAnimacion);
+            }
+        }
+
+        function dibujar(Rp, Roche, dist, tipoDestruccion, vel, vIdeal) {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            const maxVisible = 65000; 
+            const maxDist = Math.max(Roche * 1.5, maxVisible);
+            const scale = (canvas.height / 2.2) / maxDist; 
+            
+            const centerX = canvas.width / 2; 
             const centerY = canvas.height / 2;
-            
-            // Auto-escalado
-            const maxDistancia = Math.max(limiteRoche, radioPlaneta) + (limiteRoche * 0.1); 
-            const escala = (canvas.height / 2) * 0.8 / maxDistancia; 
-            
-            const rPlanetaPx = radioPlaneta * escala;
-            const rRochePx = limiteRoche * escala;
 
             // 1. Dibujar Límite de Roche
             ctx.beginPath();
-            ctx.arc(centerX, centerY, rRochePx, 0, 2 * Math.PI);
-            ctx.strokeStyle = 'rgba(76, 175, 80, 0.6)';
+            ctx.arc(centerX, centerY, Roche * scale, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(255, 63, 52, 0.4)';
             ctx.setLineDash([5, 5]);
             ctx.lineWidth = 2;
             ctx.stroke();
-
-            // 2. Dibujar Planeta con color según densidad
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, rPlanetaPx, 0, 2 * Math.PI);
-            ctx.fillStyle = getColorMaterial(densidadPlaneta);
-            ctx.fill();
-            ctx.strokeStyle = '#ffffff';
             ctx.setLineDash([]);
-            ctx.lineWidth = 1;
-            ctx.stroke();
 
-            // Texto "Planeta"
-            if (rPlanetaPx > 20) {
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('Planeta', centerX, centerY + 4);
+            // 2. Dibujar la Tierra
+            const rPx = Rp * scale;
+            if (imgTierra.complete && imgTierra.naturalWidth > 0) {
+                ctx.drawImage(imgTierra, centerX - rPx, centerY - rPx, rPx * 2, rPx * 2);
+            } else {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, rPx, 0, Math.PI*2);
+                ctx.fillStyle = '#0984e3';
+                ctx.fill();
             }
 
-            // 3. Dibujar Satélite en el límite de Roche
-            const radioSatelitePx = Math.max(8, rPlanetaPx * 0.15); // Tamaño visual para que se vea
-            const sateliteX = centerX + rRochePx;
-            
-            ctx.beginPath();
-            ctx.arc(sateliteX, centerY, radioSatelitePx, 0, 2 * Math.PI);
-            ctx.fillStyle = getColorMaterial(densidadSatelite);
-            ctx.fill();
-            ctx.strokeStyle = '#ffffff';
-            ctx.stroke();
+            // 3. CALCULAR POSICIÓN X,Y DE LA LUNA BASADO EN EL ÁNGULO
+            const satX = centerX + Math.cos(anguloOrbital) * (dist * scale);
+            const satY = centerY + Math.sin(anguloOrbital) * (dist * scale);
+            const rMoonPx = Math.max(8, rPx * 0.27); 
 
-            // Etiqueta del Satélite
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '11px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('Satélite', sateliteX, centerY - radioSatelitePx - 5);
+            // 4. Dibujar Destrucción o Luna Intacta
+            if (tipoDestruccion === "anillo") {
+                // Anillo orbital completo
+                ctx.strokeStyle = 'rgba(189, 195, 199, 0.4)';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, dist * scale, 0, Math.PI*2);
+                ctx.stroke();
+                
+                // Rocas esparcidas por todo el anillo
+                ctx.fillStyle = '#ecf0f1';
+                for(let i=0; i<200; i++) {
+                    let ang = Math.random() * Math.PI * 2;
+                    let dispersion = (dist * scale) + (Math.random() - 0.5) * 15;
+                    let pX = centerX + Math.cos(ang) * dispersion;
+                    let pY = centerY + Math.sin(ang) * dispersion;
+                    ctx.beginPath();
+                    ctx.arc(pX, pY, Math.random()*2+0.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            } else if (tipoDestruccion === "caida") {
+                // Fragmentos cayendo en espiral hacia el planeta desde la última posición orbital
+                ctx.fillStyle = '#ff7675';
+                ctx.strokeStyle = '#d63031';
+                for(let i=0; i<60; i++) {
+                    let progresoCaida = Math.random(); 
+                    let pX = satX - progresoCaida * (satX - centerX);
+                    let pY = satY - progresoCaida * (satY - centerY);
+                    
+                    // Añadir dispersión lateral para simular la lluvia
+                    let dispersionLateral = (Math.random() - 0.5) * 60;
+                    pX += Math.cos(anguloOrbital + Math.PI/2) * dispersionLateral;
+                    pY += Math.sin(anguloOrbital + Math.PI/2) * dispersionLateral;
+                    
+                    ctx.beginPath();
+                    ctx.arc(pX, pY, Math.random()*3+1, 0, Math.PI*2);
+                    ctx.fill();
+                    
+                    // Colas de los meteoritos apuntando hacia atrás en la órbita
+                    ctx.beginPath();
+                    ctx.moveTo(pX, pY);
+                    ctx.lineTo(pX - Math.cos(anguloOrbital - Math.PI/4)*8, pY - Math.sin(anguloOrbital - Math.PI/4)*8);
+                    ctx.stroke();
+                }
+            } else {
+                // Luna intacta orbitando
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(satX, satY, rMoonPx, 0, Math.PI*2);
+                ctx.clip(); 
+                
+                if (imgLuna.complete && imgLuna.naturalWidth > 0) {
+                    ctx.drawImage(imgLuna, satX - rMoonPx, satY - rMoonPx, rMoonPx * 2, rMoonPx * 2);
+                } else {
+                    ctx.fillStyle = '#bdc3c7'; 
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // CALCULAR VECTOR TANGENTE PARA LA FLECHA DE VELOCIDAD
+                const velLength = vel * 8; 
+                const anguloTangente = anguloOrbital - Math.PI / 2; // Apunta 90 grados hacia adelante de la órbita
+                
+                const velX = satX + Math.cos(anguloTangente) * velLength;
+                const velY = satY + Math.sin(anguloTangente) * velLength;
+
+                // Tallo de la flecha
+                ctx.beginPath();
+                ctx.moveTo(satX, satY);
+                ctx.lineTo(velX, velY);
+                ctx.strokeStyle = '#0be881';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // Punta de la flecha
+                ctx.beginPath();
+                ctx.moveTo(velX, velY);
+                ctx.lineTo(velX - Math.cos(anguloTangente - Math.PI/6)*8, velY - Math.sin(anguloTangente - Math.PI/6)*8);
+                ctx.lineTo(velX - Math.cos(anguloTangente + Math.PI/6)*8, velY - Math.sin(anguloTangente + Math.PI/6)*8);
+                ctx.fillStyle = '#0be881';
+                ctx.fill();
+            }
         }
 
-        const inputs = [sliderRp, numRp, sliderDp, numDp, sliderDs, numDs];
-        inputs.forEach(input => input.addEventListener('input', sincronizarYCalcular));
+        imgTierra.onload = calcular;
+        imgLuna.onload = calcular;
 
-        // Iniciar
-        sincronizarYCalcular();
+        inputs.forEach(i => i.addEventListener('input', (e) => {
+            if (animando && e.target.id !== 'vel_slider' && e.target.id !== 'vel_num') {
+                toggleAnimacion();
+            }
+            if(e.target.type === 'range') e.target.nextElementSibling.value = e.target.value;
+            if(e.target.type === 'number' && e.target.previousElementSibling?.type === 'range') e.target.previousElementSibling.value = e.target.value;
+            calcular();
+        }));
+
+        calcular();
     </script>
 </body>
 </html>
